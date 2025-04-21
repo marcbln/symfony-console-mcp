@@ -1,0 +1,26 @@
+{
+  "name": "docker-console-server",
+  "version": "0.1.0",
+  "description": "mkdir -p /home/marc/.local/share/Roo-Code/MCP &amp;&amp; cd /home/marc/.local/share/Roo-Code/MCP &amp;&amp; npx -y @modelcontextprotocol/create-server docker-console-server",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "docker-console-server": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+}
