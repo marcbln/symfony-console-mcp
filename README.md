@@ -42,6 +42,9 @@ For development with auto-rebuild:
 npm run watch
 ```
 
+### Environment Variables
+- `CONTAINER_NAME` (required): The name of the Docker container to connect to
+
 ## Installation
 
 To use with Claude Desktop, add the server config:
@@ -54,8 +57,29 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
   "mcpServers": {
     "docker-console-server": {
       "command": "/path/to/docker-console-server/build/index.js"
+    },
+    "env": {
+      "CONTAINER_NAME": "mf-www"
     }
   }
+}
+```
+### RooCode Configuration
+Example configuration showing environment variable usage:
+```json
+{
+    "mcpServers": {
+         // ...
+        "docker-console-server": {
+            "command": "node",
+            "args":    [
+                "/home/marc/devel/mcp-servers/docker-console-server-roo/build/index.js"
+            ],
+            "env":     {
+                "CONTAINER_NAME": "mf-www"
+            }
+        }
+    }
 }
 ```
 
