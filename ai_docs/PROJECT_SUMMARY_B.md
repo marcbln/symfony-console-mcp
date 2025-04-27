@@ -1,0 +1,73 @@
+# Docker Console MCP Server
+
+## Core Purpose
+Secure execution bridge for running Symfony console commands in Docker containers via Model Context Protocol (MCP) v0.6.0. Uses **CONTAINER_NAME environment variable** (required) to specify target container with strict input validation.
+
+## Key Components
+- **MCP Server Core**
+  - @modelcontextprotocol/sdk@0.6.0
+  - Bidirectional stdio transport with SIGINT handling
+  - Single endpoint: `execute_console_command`
+  - Automatic connection cleanup on shutdown
+
+- **Command Execution**
+  ```bash
+  docker exec ${CONTAINER_NAME} ${PATH_CONSOLE:-/www/bin/console} [command]
+  ```
+  - Sanitizes input against `;&|`$()` (blocks command injection)
+  - Combines stdout/stderr streams
+  - Error detection from exit code **and** stderr presence
+
+## Security
+- Input sanitization regex: `/[;&|`$()]/g`
+- Docker container isolation with strict process namespace
+- Defense in-depth:
+  - File permissions: `chmod 755 build/index.js`
+  - Separate I/O streams for control/data planes
+  - Process lifecycle management with SIGINT handler
+
+## Protocol
+**Request:**
+```json
+{
+  "name": "execute_console_command",
+  "description": "Execute console in container specified by CONTAINER_NAME",
+  "inputSchema": {
+    "properties": {
+      "command": {
+        "type": "string",
+        "pattern": "^[^;&|`$()]+$"
+      }
+    },
+    "required": ["command"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "content": [{
+    "type": "text",
+    "text": "string"
+  }],
+  "isError": true  // Non-zero exit code or stderr
+}
+```
+
+## Operational Details
+- **Logging**: All operations to stderr
+  - Command audit: `Executing: ${command}`
+  - Error prefix: `[MCP Error]`
+- **Error Codes**:
+  - 404: `MethodNotFound`
+  - 400: `InvalidCommand` (failed validation)
+  - 500: `ExecutionError` (command failure)
+
+## Development
+- **Build**:
+  - TypeScript 5.3 → ES2022
+  - Output: `build/index.js` (executable)
+- **Scripts**:
+  - `watch`: Rebuild on changes
+  - `test`: Run validation tests
