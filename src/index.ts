@@ -20,7 +20,7 @@ const server = new Server(
   {
     name: "docker-console-server",
     version: "0.1.0",
-    description: "Execute bin/console commands inside a docker container specified by CONTAINER_NAME",
+    description: "Execute console commands inside a docker container specified by CONTAINER_NAME with PATH_CONSOLE for executable path",
   },
   {
     capabilities: {
@@ -39,7 +39,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "execute_console_command",
-        description: `Execute a bin/console command inside the docker container "${process.env.CONTAINER_NAME ?? 'error-missing-env-CONTAINER_NAME'}"`,
+        description: `Execute a command using console script (${process.env.PATH_CONSOLE || '/www/bin/console'}) inside docker container "${process.env.CONTAINER_NAME || 'error-missing-env-CONTAINER_NAME'}"`,
         inputSchema: {
           type: "object",
           properties: {
@@ -83,7 +83,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (!process.env.CONTAINER_NAME) {
     throw new Error('CONTAINER_NAME environment variable is required');
   }
-  const fullDockerCommand = `docker exec ${process.env.CONTAINER_NAME} bin/console ${consoleCommand}`;
+  const fullDockerCommand = `docker exec ${process.env.CONTAINER_NAME} ${process.env.PATH_CONSOLE || '/www/bin/console'} ${consoleCommand}`;
 
   try {
     console.error(`Executing: ${fullDockerCommand}`); // Log the command being executed to server stderr

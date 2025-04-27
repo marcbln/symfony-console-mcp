@@ -14,7 +14,7 @@ Provides a secure bridge for executing commands in Docker containers via the Mod
 ## Execution Flow
 1. Accepts MCP requests via stdio
 2. Validates/sanitizes Docker commands
-3. Executes `docker exec ${CONTAINER_NAME} bin/console [command]` (CONTAINER_NAME environment variable required)
+3. Executes `docker exec ${CONTAINER_NAME} ${PATH_CONSOLE:-/www/bin/console} [command]` (CONTAINER_NAME environment variable required; PATH_CONSOLE defaults to /www/bin/console)
 4. Returns combined stdout/stderr through MCP
 5. Implements proper signal handling (SIGINT)
 

@@ -44,6 +44,7 @@ npm run watch
 
 ### Environment Variables
 - `CONTAINER_NAME` (required): The name of the Docker container to connect to
+- `PATH_CONSOLE` (optional): Path to the console executable inside the container (default: /www/bin/console)
 
 ## Installation
 
