@@ -39,7 +39,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "execute_console_command",
-        description: "Execute a bin/console command inside the docker container specified by CONTAINER_NAME",
+        description: `Execute a bin/console command inside the docker container "${process.env.CONTAINER_NAME ?? 'error-missing-env-CONTAINER_NAME'}"`,
         inputSchema: {
           type: "object",
           properties: {
