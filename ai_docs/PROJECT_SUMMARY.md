@@ -1,7 +1,7 @@
 # Docker Console MCP Server
 
 ## Core Purpose
-Secure execution bridge for running Symfony console commands in the "cm-www" Docker container via Model Context Protocol (MCP).
+Secure execution bridge for running Symfony console commands in Docker containers via Model Context Protocol (MCP). Uses CONTAINER_NAME environment variable to specify target container.
 
 ## Key Components
 - **MCP Server Core**
@@ -11,7 +11,7 @@ Secure execution bridge for running Symfony console commands in the "cm-www" Doc
   
 - **Command Execution**
   ```typescript
-  `docker exec cm-www bin/console ${sanitizedCommand}`
+  `docker exec ${CONTAINER_NAME} bin/console ${sanitizedCommand}`
   ```
   - Sanitizes input against `;&|``$()`
   - Combines stdout/stderr streams
@@ -32,7 +32,7 @@ Secure execution bridge for running Symfony console commands in the "cm-www" Doc
 ```typescript
 {
   name: "execute_console_command",
-  description: "Execute bin/console in cm-www container",
+  description: "Execute bin/console in container specified by CONTAINER_NAME",
   inputSchema: {
     properties: { command: { type: "string" } },
     required: ["command"]

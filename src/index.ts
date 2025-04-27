@@ -20,7 +20,7 @@ const server = new Server(
   {
     name: "docker-console-server",
     version: "0.1.0",
-    description: "Execute bin/console commands inside a docker container \"cm-www\"",
+    description: "Execute bin/console commands inside a docker container specified by CONTAINER_NAME",
   },
   {
     capabilities: {
@@ -39,7 +39,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "execute_console_command",
-        description: "Execute a bin/console command inside the cm-www docker container",
+        description: "Execute a bin/console command inside the docker container specified by CONTAINER_NAME",
         inputSchema: {
           type: "object",
           properties: {
@@ -62,7 +62,7 @@ const isValidExecArgs = (args: any): args is { command: string } =>
 
 /**
  * Handler for the execute_console_command tool.
- * Executes the provided command inside the 'cm-www' docker container using 'docker exec'.
+ * Executes the provided command inside the docker container specified by CONTAINER_NAME using 'docker exec'.
  */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (request.params.name !== "execute_console_command") {
@@ -80,7 +80,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       throw new McpError(ErrorCode.InvalidParams, 'Invalid characters detected in command.');
   }
 
-  const fullDockerCommand = `docker exec cm-www bin/console ${consoleCommand}`;
+  if (!process.env.CONTAINER_NAME) {
+    throw new Error('CONTAINER_NAME environment variable is required');
+  }
+  const fullDockerCommand = `docker exec ${process.env.CONTAINER_NAME} bin/console ${consoleCommand}`;
 
   try {
     console.error(`Executing: ${fullDockerCommand}`); // Log the command being executed to server stderr
