@@ -6,19 +6,26 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   McpError,
-  ErrorCode,
+  ErrorCode
 } from "@modelcontextprotocol/sdk/types.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
+// Define the expected return type for clarity
+type DockerExecResult = {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+};
+
 /**
  * Executes a console command inside the docker container specified by CONTAINER_NAME.
  * Encapsulates the logic for building and executing the docker exec command.
  * @param commandArgs The arguments to pass to the console command (e.g., "list --format=json").
- * @returns The result in the standard MCP tool response structure.
+ * @returns A promise resolving to an object containing stdout, stderr, and the exit code.
  */
-const executeDockerConsoleCommand = async (commandArgs: string) => {
+const executeDockerConsoleCommand = async (commandArgs: string): Promise<DockerExecResult> => {
   // Basic sanitization to prevent command injection vulnerabilities like '; rm -rf /'
   // This is a simple example; more robust sanitization might be needed depending on usage.
   // Adapted from lines 79-81 in the original CallToolRequestSchema handler.
@@ -35,30 +42,16 @@ const executeDockerConsoleCommand = async (commandArgs: string) => {
     console.error(`Executing: ${fullDockerCommand}`); // Log the command being executed to server stderr
     const { stdout, stderr } = await execAsync(fullDockerCommand);
 
-    // Combine stdout and stderr for the result.
-    // If stderr has content, it might indicate warnings or non-fatal errors from the console command.
-    const output = `STDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`;
-
-    return {
-      content: [{
-        type: "text",
-        text: output
-      }],
-      // Indicate error if stderr is not empty, even if exec didn't throw an error code.
-      // Some console commands might report issues via stderr without exiting non-zero.
-      isError: !!stderr
-    };
+    // Always return the object format on success
+    return { stdout, stderr, exitCode: 0 };
   } catch (error: any) {
     console.error(`Error executing command: ${error}`); // Log the error to server stderr
-    // If exec fails (e.g., container not running, command not found), return an error response.
-    return {
-      content: [{
-        type: "text",
-        // Include error message, stdout, and stderr if available
-        text: `Execution failed: ${error.message}\n\nSTDOUT:\n${error.stdout || ''}\n\nSTDERR:\n${error.stderr || ''}`
-      }],
-      isError: true
-    };
+    // Extract details and return the object format on error
+    const stdout = error.stdout || '';
+    const stderr = error.stderr || '';
+    // Ensure exitCode is a number, default to 1 if not available
+    const exitCode = typeof error.code === 'number' ? error.code : 1;
+    return { stdout, stderr, exitCode };
   }
 };
 
@@ -130,34 +123,65 @@ const isValidExecArgs = (args: any): args is { command: string } =>
 const isValidHelpArgs = (args: any): args is { commandName: string } =>
   typeof args === 'object' && args !== null && typeof args.commandName === 'string';
 
-
 /**
- * Handler for the execute_console_command tool.
- * Executes the provided command inside the docker container specified by CONTAINER_NAME using 'docker exec'.
+ * Formats the result of executeDockerConsoleCommand into an MCP CallToolResponse.
+ * Returns only stdout on clean success (exit code 0, empty stderr),
+ * otherwise returns a formatted error message with exit code, stdout, and stderr.
+ * @param result The result object from executeDockerConsoleCommand.
+ * @returns An MCP tool response object ({ content: ..., isError: ... }).
  */
+function formatDockerResultToMcpResponse(result: DockerExecResult) { // Removed explicit return type
+  if (result.exitCode === 0 && !result.stderr) {
+    // Clean success
+    return { content: [{ type: "text", text: result.stdout }], isError: false };
+  } else {
+    // Error or success with stderr
+    const message = `Exit Code: ${result.exitCode}\n\nSTDOUT:\n${result.stdout}\n\nSTDERR:\n${result.stderr}`;
+    // Indicate error if exit code is non-zero OR if there's stderr content
+    return { content: [{ type: "text", text: message }], isError: true };
+  }
+}
+
 
 /**
  * Handler for tool calls.
  * Executes the requested tool based on its name.
  */
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request) => { // Removed explicit return type
   switch (request.params.name) {
-    case "execute_console_command":
+    case "execute_console_command": { // Added braces for scope clarity
       if (!isValidExecArgs(request.params.arguments)) {
         throw new McpError(ErrorCode.InvalidParams, 'Invalid arguments for execute_console_command: "command" (string) is required.');
       }
-      return executeDockerConsoleCommand(request.params.arguments.command);
-
-    case "list_commands":
-      // No specific arguments needed for list_commands
-      return executeDockerConsoleCommand("list --format=json");
-
-    case "command_help":
+      const result = await executeDockerConsoleCommand(request.params.arguments.command);
+      return formatDockerResultToMcpResponse(result); // Use the helper
+    }
+    case "list_commands": {
+      const result = await executeDockerConsoleCommand("list --format=json");
+      // Special handling for JSON parsing on clean success
+      if (result.exitCode === 0 && !result.stderr) {
+        try {
+          JSON.parse(result.stdout); // Validate JSON
+          // Return raw stdout for clean, valid JSON output
+          return { content: [{ type: "text", text: result.stdout }], isError: false };
+        } catch (parseError: any) {
+          console.error("Failed to parse list_commands output as JSON:", parseError);
+          // Return a specific error if JSON parsing fails on clean output
+          const message = `Failed to parse JSON output:\n${parseError.message}\n\nRaw Output:\n${result.stdout}`;
+          return { content: [{ type: "text", text: message }], isError: true };
+        }
+      } else {
+        // Handle errors or stderr using the standard helper
+        return formatDockerResultToMcpResponse(result);
+      }
+    }
+    case "command_help": { // Added braces for scope clarity
       if (!isValidHelpArgs(request.params.arguments)) {
         throw new McpError(ErrorCode.InvalidParams, 'Invalid arguments for command_help: "commandName" (string) is required.');
       }
-      return executeDockerConsoleCommand(`${request.params.arguments.commandName} --help`);
-
+      const result = await executeDockerConsoleCommand(`${request.params.arguments.commandName} --help`);
+      return formatDockerResultToMcpResponse(result); // Use the helper
+    }
     default:
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
   }
