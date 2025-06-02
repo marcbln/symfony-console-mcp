@@ -13,7 +13,7 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 // Define the expected return type for clarity
-type DockerExecResult = {
+type ConsoleExecResult = {
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -25,7 +25,7 @@ type DockerExecResult = {
  * @param commandArgs The arguments to pass to the console command (e.g., "list --format=json").
  * @returns A promise resolving to an object containing stdout, stderr, and the exit code.
  */
-const executeDockerConsoleCommand = async (commandArgs: string): Promise<DockerExecResult> => {
+const executeConsoleCommand = async (commandArgs: string): Promise<ConsoleExecResult> => {
   // Basic sanitization to prevent command injection vulnerabilities like '; rm -rf /'
   // This is a simple example; more robust sanitization might be needed depending on usage.
   // Adapted from lines 79-81 in the original CallToolRequestSchema handler.
@@ -62,7 +62,7 @@ const server = new Server(
   {
     name: "docker-console-server",
     version: "0.1.0",
-    description: "Execute console commands inside a docker container specified by CONTAINER_NAME with PATH_CONSOLE for executable path",
+    description: "Executes console commands either locally or inside a docker container. Configured by EXECUTION_MODE, CONTAINER_NAME (for docker mode), and PATH_CONSOLE.",
   },
   {
     capabilities: {
@@ -81,7 +81,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "execute_console_command",
-        description: `Execute a command using console script (${process.env.PATH_CONSOLE || '/www/bin/console'}) inside docker container "${process.env.CONTAINER_NAME || 'error-missing-env-CONTAINER_NAME'}"`,
+        description: `Executes a console command. Current server EXECUTION_MODE: "${process.env.EXECUTION_MODE || 'docker'}". ` +
+                     `In "docker" mode, uses container "${process.env.CONTAINER_NAME || '(CONTAINER_NAME not set)'}" and console path "${process.env.PATH_CONSOLE || '/www/bin/console'}". ` +
+                     `In "local" mode, uses host console path "${process.env.PATH_CONSOLE || '(PATH_CONSOLE not set)'}" (PATH_CONSOLE is required for local mode).`,
         inputSchema: {
           type: "object",
           properties: {
@@ -95,12 +97,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_commands",
-        description: "Lists available console commands using `bin/console list --format=json`.",
+        description: "Lists available console commands (e.g., using `PATH_CONSOLE list --format=json`). Behavior depends on EXECUTION_MODE and PATH_CONSOLE.",
         inputSchema: { type: "object", properties: {} }
       },
       {
         name: "command_help",
-        description: "Gets help for a specific console command using `bin/console {commandName} --help`.",
+        description: "Gets help for a specific console command (e.g., using `PATH_CONSOLE {commandName} --help`). Behavior depends on EXECUTION_MODE and PATH_CONSOLE.",
         inputSchema: {
           type: "object",
           properties: {
@@ -130,7 +132,7 @@ const isValidHelpArgs = (args: any): args is { commandName: string } =>
  * @param result The result object from executeDockerConsoleCommand.
  * @returns An MCP tool response object ({ content: ..., isError: ... }).
  */
-function formatDockerResultToMcpResponse(result: DockerExecResult) { // Removed explicit return type
+function formatDockerResultToMcpResponse(result: ConsoleExecResult) { // Updated type to ConsoleExecResult
   if (result.exitCode === 0 && !result.stderr) {
     // Clean success
     return { content: [{ type: "text", text: result.stdout }], isError: false };
@@ -153,11 +155,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => { // Removed 
       if (!isValidExecArgs(request.params.arguments)) {
         throw new McpError(ErrorCode.InvalidParams, 'Invalid arguments for execute_console_command: "command" (string) is required.');
       }
-      const result = await executeDockerConsoleCommand(request.params.arguments.command);
+      const result = await executeConsoleCommand(request.params.arguments.command);
       return formatDockerResultToMcpResponse(result); // Use the helper
     }
     case "list_commands": {
-      const result = await executeDockerConsoleCommand("list --format=json");
+      const result = await executeConsoleCommand("list --format=json");
       // Special handling for JSON parsing on clean success
       if (result.exitCode === 0 && !result.stderr) {
         try {
@@ -179,7 +181,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => { // Removed 
       if (!isValidHelpArgs(request.params.arguments)) {
         throw new McpError(ErrorCode.InvalidParams, 'Invalid arguments for command_help: "commandName" (string) is required.');
       }
-      const result = await executeDockerConsoleCommand(`${request.params.arguments.commandName} --help`);
+      const result = await executeConsoleCommand(`${request.params.arguments.commandName} --help`);
       return formatDockerResultToMcpResponse(result); // Use the helper
     }
     default:

@@ -43,8 +43,13 @@ npm run watch
 ```
 
 ### Environment Variables
-- `CONTAINER_NAME` (required): The name of the Docker container to connect to
-- `PATH_CONSOLE` (optional): Path to the console executable inside the container (default: /www/bin/console)
+- `EXECUTION_MODE` (optional): Specifies where commands are executed.
+  - `"docker"` (default): Executes commands in a Docker container. `CONTAINER_NAME` is required. `PATH_CONSOLE` refers to the path inside the container.
+  - `"local"`: Executes commands on the host machine. `PATH_CONSOLE` is required and must be the full path or command to the console executable on the host (e.g., `php /path/to/app/bin/console` or `/usr/local/bin/myconsole`). `CONTAINER_NAME` is ignored in this mode.
+- `CONTAINER_NAME`: The name of the Docker container to connect to. Required if `EXECUTION_MODE` is "docker" (or not set). Ignored if `EXECUTION_MODE` is "local".
+- `PATH_CONSOLE`: Path to the console executable.
+  - If `EXECUTION_MODE` is "docker" (or not set): Path inside the container (optional, default: `/www/bin/console`).
+  - If `EXECUTION_MODE` is "local": Path on the host machine (required, e.g., `php /path/to/your-project/bin/console`).
 
 ## Installation
 
@@ -67,6 +72,8 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 ```
 ### RooCode Configuration
 Example configuration showing environment variable usage:
+
+#### Docker Execution Mode (Default)
 ```json
 {
     "mcpServers": {
@@ -78,6 +85,27 @@ Example configuration showing environment variable usage:
             ],
             "env":     {
                 "CONTAINER_NAME": "mf-www"
+            }
+        }
+    }
+}
+```
+
+#### Local Execution Mode
+You can configure another instance of the server (or modify an existing one) to run commands locally:
+```json
+{
+    "mcpServers": {
+         // ... other servers ...
+        "my-local-console": {
+            "command": "node", // Or the direct path to your built index.js
+            "args":    [
+                "/path/to/your/docker-console-server/build/index.js"
+            ],
+            "env":     {
+                "EXECUTION_MODE": "local",
+                "PATH_CONSOLE": "php /home/user/my_project/bin/console" // Example: PHP Symfony console
+                // "CONTAINER_NAME" would be ignored here
             }
         }
     }

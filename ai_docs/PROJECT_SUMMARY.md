@@ -1,7 +1,7 @@
 # Docker Console MCP Server
 
 ## Core Purpose
-Secure execution bridge for running Symfony console commands in Docker containers via Model Context Protocol (MCP) v0.6.0. Uses **CONTAINER_NAME environment variable** (required) to specify target container with strict input validation.
+Secure execution bridge for running Symfony console commands via Model Context Protocol (MCP) v0.6.0. Operates in 'docker' or 'local' mode via `EXECUTION_MODE` env var. Docker mode uses `CONTAINER_NAME` (required) to specify target container with strict input validation.
 
 ## Key Components
 - **MCP Server Core**
@@ -11,9 +11,11 @@ Secure execution bridge for running Symfony console commands in Docker container
   - Automatic connection cleanup on shutdown
 
 - **Command Execution**
-  ```bash
-  docker exec ${CONTAINER_NAME} ${PATH_CONSOLE:-/www/bin/console} [command]
-  ```
+  - Execution depends on `EXECUTION_MODE` (default "docker"):
+    - **Docker Mode:** `docker exec ${CONTAINER_NAME} ${PATH_CONSOLE:-/www/bin/console} [command]`
+      (Requires `CONTAINER_NAME`; `PATH_CONSOLE` is in-container path)
+    - **Local Mode:** `${PATH_CONSOLE} [command]`
+      (Requires `PATH_CONSOLE` as host path/command)
   - Sanitizes input against ``;&|`$()`` (blocks command injection)
   - Combines stdout/stderr streams
   - Error detection from exit code **and** stderr presence
