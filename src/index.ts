@@ -20,8 +20,7 @@ type ConsoleExecResult = {
 };
 
 /**
- * Executes a console command inside the docker container specified by CONTAINER_NAME.
- * Encapsulates the logic for building and executing the docker exec command.
+ * Executes a console command either locally or inside a docker container, depending on EXECUTION_MODE.
  * @param commandArgs The arguments to pass to the console command (e.g., "list --format=json").
  * @returns A promise resolving to an object containing stdout, stderr, and the exit code.
  */
@@ -33,14 +32,25 @@ const executeConsoleCommand = async (commandArgs: string): Promise<ConsoleExecRe
       throw new McpError(ErrorCode.InvalidParams, 'Invalid characters detected in command arguments.');
   }
 
-  if (!process.env.CONTAINER_NAME) {
-    throw new Error('CONTAINER_NAME environment variable is required');
+  if (!process.env.PATH_CONSOLE) {
+    throw new Error('PATH_CONSOLE environment variable is required');
   }
-  const fullDockerCommand = `docker exec ${process.env.CONTAINER_NAME} ${process.env.PATH_CONSOLE || '/www/bin/console'} ${commandArgs}`;
+
+  let fullCommand;
+  if (process.env.EXECUTION_MODE === 'local') {
+    // Local execution mode
+    fullCommand = `${process.env.PATH_CONSOLE} ${commandArgs}`;
+  } else {
+    // Docker execution mode (default)
+    if (!process.env.CONTAINER_NAME) {
+      throw new Error('CONTAINER_NAME environment variable is required for docker execution mode');
+    }
+    fullCommand = `docker exec ${process.env.CONTAINER_NAME} ${process.env.PATH_CONSOLE || '/www/bin/console'} ${commandArgs}`;
+  }
 
   try {
-    console.error(`Executing: ${fullDockerCommand}`); // Log the command being executed to server stderr
-    const { stdout, stderr } = await execAsync(fullDockerCommand);
+    console.error(`Executing: ${fullCommand}`); // Log the command being executed to server stderr
+    const { stdout, stderr } = await execAsync(fullCommand);
 
     // Always return the object format on success
     return { stdout, stderr, exitCode: 0 };
@@ -62,7 +72,7 @@ const server = new Server(
   {
     name: "docker-console-server",
     version: "0.1.0",
-    description: "Executes console commands either locally or inside a docker container. Configured by EXECUTION_MODE, CONTAINER_NAME (for docker mode), and PATH_CONSOLE.",
+    description: "Executes console commands either locally or inside a docker container. Configured by EXECUTION_MODE (local or docker), CONTAINER_NAME (for docker mode), and PATH_CONSOLE.",
   },
   {
     capabilities: {
@@ -83,7 +93,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "execute_console_command",
         description: `Executes a console command. Current server EXECUTION_MODE: "${process.env.EXECUTION_MODE || 'docker'}". ` +
                      `In "docker" mode, uses container "${process.env.CONTAINER_NAME || '(CONTAINER_NAME not set)'}" and console path "${process.env.PATH_CONSOLE || '/www/bin/console'}". ` +
-                     `In "local" mode, uses host console path "${process.env.PATH_CONSOLE || '(PATH_CONSOLE not set)'}" (PATH_CONSOLE is required for local mode).`,
+                     `In "local" mode, executes command directly on the host using "${process.env.PATH_CONSOLE || '(PATH_CONSOLE not set)'}" (PATH_CONSOLE is required for local mode).`,
         inputSchema: {
           type: "object",
           properties: {

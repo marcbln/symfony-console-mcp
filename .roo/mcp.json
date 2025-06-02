@@ -2,6 +2,16 @@
   "mcpServers": {
     "MCP Typescript SDK Docs": {
       "url": "https://gitmcp.io/modelcontextprotocol/typescript-sdk"
+    },
+    "symfony-console": {
+      "command": "node",
+      "args": [
+        "/home/marc/devel/mcp-servers/docker-console-server-roo/build/index.js"
+      ],
+      "env": {
+        "EXECUTION_MODE": "local",
+        "PATH_CONSOLE": "php -d memory_limit=4G /topdata/dev-shops/sw66dev.test/bin/console"
+      }
     }
   }
 }
