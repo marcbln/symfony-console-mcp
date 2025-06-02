@@ -1,123 +1,139 @@
-# docker-console-server MCP Server
+# Symfony Console MCP Server
+[![GitHub Repository](https://img.shields.io/badge/github-repository-blue)](https://github.com/marcbln/symfony-console-mcp)
 
-mkdir -p /home/marc/.local/share/Roo-Code/MCP &amp;&amp; cd /home/marc/.local/share/Roo-Code/MCP &amp;&amp; npx -y @modelcontextprotocol/create-server docker-console-server
+Executes Symfony console commands in Docker containers or locally via Model Context Protocol (MCP).
+Provides tools for command execution, listing, and help documentation.
 
-This is a TypeScript-based MCP server that implements a simple notes system. It demonstrates core MCP concepts by providing:
-
-- Resources representing text notes with URIs and metadata
-- Tools for creating new notes
-- Prompts for generating summaries of notes
+## Table of Contents
+- [Features](#features)
+- [Environment Variables](#environment-variables)
+- [Provided Tools](#provided-tools)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Security](#security)
+- [Contributing](#contributing)
 
 ## Features
 
-### Resources
-- List and access notes via `note://` URIs
-- Each note has a title, content and metadata
-- Plain text mime type for simple content access
+The Symfony Console MCP Server provides a secure bridge for executing Symfony console commands through the Model Context Protocol (MCP). It supports two execution modes:
 
-### Tools
-- `create_note` - Create new text notes
-  - Takes title and content as required parameters
-  - Stores note in server state
+- **Docker Mode**: Executes commands inside a specified Docker container
+- **Local Mode**: Executes commands directly on the host machine
 
-### Prompts
-- `summarize_notes` - Generate a summary of all stored notes
-  - Includes all note contents as embedded resources
-  - Returns structured prompt for LLM summarization
-
-## Development
-
-Install dependencies:
-```bash
-npm install
+```mermaid
+flowchart TD
+    A[MCP Request] --> B{Execution Mode?}
+    B -->|Docker| C[Run in Container\nCONTAINER_NAME required]
+    B -->|Local| D[Run on Host\nPATH_CONSOLE required]
+    C --> E[Execute Command]
+    D --> E
+    E --> F{Success?}
+    F -->|Yes| G[Return STDOUT]
+    F -->|No| H[Return Error Details]
 ```
 
-Build the server:
-```bash
-npm run build
-```
+## Environment Variables
 
-For development with auto-rebuild:
-```bash
-npm run watch
-```
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `EXECUTION_MODE` | No | `docker` | Execution mode: `docker` or `local` |
+| `CONTAINER_NAME` | Docker mode only | - | Target Docker container name |
+| `PATH_CONSOLE` | Local mode only | `/www/bin/console` | Path to console executable |
 
-### Environment Variables
-- `EXECUTION_MODE` (optional): Specifies where commands are executed.
-  - `"docker"` (default): Executes commands in a Docker container. `CONTAINER_NAME` is required. `PATH_CONSOLE` refers to the path inside the container.
-  - `"local"`: Executes commands on the host machine. `PATH_CONSOLE` is required and must be the full path or command to the console executable on the host (e.g., `php /path/to/app/bin/console` or `/usr/local/bin/myconsole`). `CONTAINER_NAME` is ignored in this mode.
-- `CONTAINER_NAME`: The name of the Docker container to connect to. Required if `EXECUTION_MODE` is "docker" (or not set). Ignored if `EXECUTION_MODE` is "local".
-- `PATH_CONSOLE`: Path to the console executable.
-  - If `EXECUTION_MODE` is "docker" (or not set): Path inside the container (optional, default: `/www/bin/console`).
-  - If `EXECUTION_MODE` is "local": Path on the host machine (required, e.g., `php /path/to/your-project/bin/console`).
+## Provided Tools
+
+- **`execute_console_command`**: Executes console commands with argument sanitization
+  ```json
+  {
+    "name": "execute_console_command",
+    "arguments": {
+      "command": "cache:clear"
+    }
+  }
+  ```
+
+- **`list_commands`**: Lists available console commands in JSON format
+  ```json
+  {
+    "name": "list_commands"
+  }
+  ```
+
+- **`command_help`**: Shows help for a specific command
+  ```json
+  {
+    "name": "command_help",
+    "arguments": {
+      "commandName": "cache:clear"
+    }
+  }
+  ```
 
 ## Installation
 
-To use with Claude Desktop, add the server config:
+```bash
+git clone https://github.com/marcbln/symfony-console-mcp.git
+cd symfony-console-mcp
+npm install
+npm run build
+```
 
-On MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+## Configuration
+
+### Docker Mode
 
 ```json
 {
   "mcpServers": {
-    "docker-console-server": {
-      "command": "/path/to/docker-console-server/build/index.js"
-    },
-    "env": {
-      "CONTAINER_NAME": "mf-www"
+    "docker-console": {
+      "command": "node",
+      "args": ["/path/to/build/index.js"],
+      "env": {
+        "CONTAINER_NAME": "my-app-container"
+      }
     }
   }
 }
 ```
-### RooCode Configuration
-Example configuration showing environment variable usage:
 
-#### Docker Execution Mode (Default)
+### Local Mode
+
 ```json
 {
-    "mcpServers": {
-         // ...
-        "docker-console-server": {
-            "command": "node",
-            "args":    [
-                "/home/marc/devel/mcp-servers/docker-console-server-roo/build/index.js"
-            ],
-            "env":     {
-                "CONTAINER_NAME": "mf-www"
-            }
-        }
+  "mcpServers": {
+    "local-console": {
+      "command": "node",
+      "args": ["/path/to/build/index.js"],
+      "env": {
+        "EXECUTION_MODE": "local",
+        "PATH_CONSOLE": "php /projects/myapp/bin/console"
+      }
     }
+  }
 }
 ```
 
-#### Local Execution Mode
-You can configure another instance of the server (or modify an existing one) to run commands locally:
-```json
-{
-    "mcpServers": {
-         // ... other servers ...
-        "my-local-console": {
-            "command": "node", // Or the direct path to your built index.js
-            "args":    [
-                "/path/to/your/docker-console-server/build/index.js"
-            ],
-            "env":     {
-                "EXECUTION_MODE": "local",
-                "PATH_CONSOLE": "php /home/user/my_project/bin/console" // Example: PHP Symfony console
-                // "CONTAINER_NAME" would be ignored here
-            }
-        }
-    }
-}
-```
+## Development
 
-### Debugging
+- `npm run build`: Compile TypeScript to JavaScript
+- `npm run watch`: Development mode with live recompilation
+- `npm run inspector`: Launch MCP Inspector for debugging
 
-Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
+## Security
 
-```bash
-npm run inspector
-```
+The server implements several security measures:
 
-The Inspector will provide a URL to access debugging tools in your browser.
+- Input sanitization to prevent command injection
+- Docker container isolation in Docker mode
+- Strict environment variable validation
+- Error handling for missing or invalid parameters
+- Separate I/O streams for control and data planes
+
+## Contributing
+
+Pull requests are welcome! Please include tests for new features and follow the existing code style.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
